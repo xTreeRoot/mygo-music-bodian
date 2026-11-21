@@ -1,12 +1,17 @@
 {
   "id": "bodian",
   "name": "Bodian Music",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "minAppVersion": "0.1.17",
   "main": "index.js",
   "playback": "stream",
   "permissions": {
-    "network": ["bd-api.kuwo.cn", "mlyric.kuwo.cn"]
+    "network": [
+      "bd-api.kuwo.cn",
+      "mlyric.kuwo.cn",
+      "*.kuwo.cn",
+      "qpic.y.qq.com"
+    ]
   },
   "settings": [
     {
@@ -16,13 +21,60 @@
     }
   ],
   "navigation": [
-    { "title": "Discover", "builtin": "home", "icon": "home" },
-    { "title": "Radio", "builtin": "stations", "icon": "radio" },
-    { "title": "Charts", "page": "charts", "icon": "chart" },
-    { "title": "Playlist Square", "page": "square", "icon": "playlist" },
-    { "title": "Music Calendar", "page": "calendar", "icon": "calendar" },
-    { "title": "Topics", "page": "topics", "icon": "podcast" },
-    { "title": "Listening Stats", "page": "stats", "icon": "artist" },
-    { "title": "Liked Songs", "builtin": "liked", "icon": "heart" }
+    {
+      "title": "Discover",
+      "builtin": "home",
+      "icon": "home"
+    },
+    {
+      "title": "Radio",
+      "builtin": "stations",
+      "icon": "radio"
+    },
+    {
+      "title": "Charts",
+      "page": "charts",
+      "icon": "chart"
+    },
+    {
+      "title": "Playlist Square",
+      "page": "square",
+      "icon": "playlist"
+    },
+    {
+      "title": "Music Calendar",
+      "page": "calendar",
+      "icon": "calendar"
+    },
+    {
+      "title": "Topics",
+      "page": "topics",
+      "icon": "podcast"
+    },
+    {
+      "title": "Listening Stats",
+      "page": "stats",
+      "icon": "artist"
+    },
+    {
+      "title": "Liked Songs",
+      "builtin": "liked",
+      "icon": "heart"
+    }
+  ],
+  "requestHeaders": [
+    {
+      "hosts": [
+        "*.kuwo.cn",
+        "qpic.y.qq.com"
+      ],
+      "kinds": [
+        "image",
+        "audio"
+      ],
+      "headers": {
+        "User-Agent": "Dart/3.3 (dart:io)"
+      }
+    }
   ]
 }

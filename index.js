@@ -15,6 +15,7 @@ const REQUEST_TIMEOUT = 8000;
 // The host gives a call 30 seconds; stop short of it so the answer is ours.
 const CALL_BUDGET = 25000;
 const SESSION_KEY = "session";
+const ACTIVE_KEY = "session.active";
 const DEVID_KEY = "devid";
 const RECENT_KEY = "recent";
 const RECENT_LIMIT = 100;
@@ -113,12 +114,24 @@ function freshDevid() {
 }
 
 function session() {
-  return host.storage.get(SESSION_KEY) || null;
+  if (host.storage.get(ACTIVE_KEY) === false) return null;
+  return checkedSession(host.storage.get(SESSION_KEY));
+}
+
+function checkedSession(value) {
+  if (!value || typeof value !== 'object' || !/^[1-9]\d*$/.test(value.uid) || typeof value.token !== 'string' || !value.token || /[\s;]/.test(value.token)) return null;
+  return { uid: String(value.uid), token: value.token };
+}
+
+function sameSession(a, b) {
+  return !!a && !!b && a.uid === b.uid && a.token === b.token;
 }
 
 function setSession(value) {
-  if (value) host.storage.set(SESSION_KEY, value);
-  else host.storage.remove(SESSION_KEY);
+  if (value) {
+    host.storage.set(SESSION_KEY, value);
+    host.storage.set(ACTIVE_KEY, true);
+  } else host.storage.set(ACTIVE_KEY, false);
 }
 
 async function requireSession() {
@@ -129,7 +142,7 @@ async function requireSession() {
 
 // --- requests --------------------------------------------------------------
 
-function headers(extra, freshDevice, deviceId) {
+function headers(extra, freshDevice, deviceId, auth) {
   const device = deviceId || (freshDevice ? freshDevid() : devid());
   const h = {
     "User-Agent": UA,
@@ -144,7 +157,7 @@ function headers(extra, freshDevice, deviceId) {
     qimei36: device,
     ...extra,
   };
-  const s = session();
+  const s = auth;
   if (s) {
     h.uid = String(s.uid);
     h.token = s.token;
@@ -152,7 +165,8 @@ function headers(extra, freshDevice, deviceId) {
   return h;
 }
 
-async function request(path, { query, method = "GET", body, headers: extra, deadline: until, freshDevice = false, sessionInQuery = true, device } = {}) {
+async function request(path, { query, method = "GET", body, headers: extra, deadline: until, freshDevice = false, sessionInQuery = true, device, auth = session(), login, signed = false } = {}) {
+  login?.check();
   if (expired(until)) throw timedOut();
   let url = API + path;
   const q = new URLSearchParams();
@@ -163,14 +177,22 @@ async function request(path, { query, method = "GET", body, headers: extra, dead
   // as well as the headers. A read from a fresh device sends it in the
   // headers only: a query uid makes it answer with the account's own picks,
   // which can be empty, where the headers alone give the scene's songs.
-  const s = sessionInQuery && !freshDevice ? session() : null;
-  if (s) {
+  const s = auth;
+  if (s && sessionInQuery && !freshDevice) {
     q.set("uid", String(s.uid));
     q.set("token", s.token);
   }
+  if (signed) {
+    if (!s) { q.set('uid', '-1'); q.set('token', ''); }
+    q.set('timestamp', String(Date.now()));
+    const bodyText = body === undefined ? '' : JSON.stringify(body);
+    let seed = 'kuwotest' + Array.from(q.toString()).filter(char => /[a-z0-9]/i.test(char)).sort().join('');
+    if (bodyText) seed += host.crypto.md5(bodyText + 'kuwotest');
+    q.set('sign', host.crypto.md5(seed + '/api/' + path));
+  }
   const text = q.toString();
   if (text) url += `?${text}`;
-  const init = { method, headers: headers(extra, freshDevice, device) };
+  const init = { method, headers: headers(extra, freshDevice, device, s) };
   if (body !== undefined) {
     init.method = method === "GET" ? "POST" : method;
     init.body = JSON.stringify(body);
@@ -180,15 +202,16 @@ async function request(path, { query, method = "GET", body, headers: extra, dead
   const wait = until ? Math.min(REQUEST_TIMEOUT, until - Date.now()) : REQUEST_TIMEOUT;
   const timer = setTimeout(() => controller.abort(), Math.max(1, wait));
   init.signal = controller.signal;
+  login?.controllers.add(controller);
   let envelope;
   try {
-    const response = await fetch(url, init);
+    const response = await (login ? login.wait(fetch(url, init)) : fetch(url, init));
     if (!response.ok) {
       // The API answers its own errors in JSON with a 200, so a status here
       // is the web's, not Bodian's. Keep whichever code says more.
       let code = response.status;
       try {
-        const answer = await response.json();
+        const answer = await (login ? login.wait(response.json()) : response.json());
         if (answer && answer.code !== undefined && Number(answer.code) !== 200) code = answer.code;
       } catch (ignored) {
         // Not JSON: the status is all there is.
@@ -196,26 +219,29 @@ async function request(path, { query, method = "GET", body, headers: extra, dead
       throw fail("http", t("Bodian Music answered with an error ({code})", { code }));
     }
     try {
-      envelope = await response.json();
+      envelope = await (login ? login.wait(response.json()) : response.json());
     } catch (error) {
       if (controller.signal.aborted) throw error;
       throw fail("invalid", t("Bodian Music returned invalid data"));
     }
   } catch (error) {
+    login?.check();
     if (controller.signal.aborted) throw timedOut();
     if (error && (error.code === "http" || error.code === "invalid")) throw error;
     throw new Error(t("Can’t reach Bodian Music, check your network"));
   } finally {
     clearTimeout(timer);
+    login?.controllers.delete(controller);
   }
+  login?.check();
   if (!envelope || typeof envelope !== "object") throw new Error(t("Bodian Music returned invalid data"));
   const code = Number(envelope.code);
   if (code !== 200) {
     if (SIGNED_OUT.includes(code)) {
-      // Only the session the request went out with may be cleared: one
-      // answered late can't wipe a session a sign-in has just stored.
+      // Only deactivate the session this request used. Retain its credential,
+      // and leave newer accounts or an explicit login candidate untouched.
       const current = session();
-      if (!current || (s && current.uid === s.uid && current.token === s.token)) {
+      if (!login && sameSession(current, s)) {
         setSession(null);
         forgetLibrary();
       }
@@ -413,9 +439,10 @@ function utf8(bytes) {
 
 // --- signing in ------------------------------------------------------------
 
-async function profileOf(uid, until) {
-  const data = await get(`ucenter/users/pub/${uid}`, { fromUid: uid, platform: "ios" }, { deadline: until });
+async function profileOf(uid, until, extra = {}) {
+  const data = await get(`ucenter/users/pub/${uid}`, { fromUid: uid, platform: "ios" }, { deadline: until, ...extra });
   const user = (data && data.userInfo) || data || {};
+  if (user.id != null && String(user.id) !== String(uid)) throw fail("invalid", t("Bodian Music returned inconsistent account identity"));
   return {
     id: String(user.id || uid),
     name: user.nickname || user.name || t("Bodian Music listener"),
@@ -424,83 +451,160 @@ async function profileOf(uid, until) {
   };
 }
 
+// The public profile endpoint is not token validation. Reuse only a matching
+// credential returned by the signed login endpoint; otherwise offer a new QR.
+let loginRevision = 0;
+let activeLogin = null;
+
+function loginOperation() {
+  cancelSignIn();
+  const revision = loginRevision;
+  const stopped = new Set();
+  const controllers = new Set();
+  const canceled = () => fail("canceled", t("Sign-in was cancelled or timed out"));
+  const check = () => { if (revision !== loginRevision) throw canceled(); };
+  const wait = promise => new Promise((resolve, reject) => {
+    check();
+    const stop = () => reject(canceled());
+    stopped.add(stop);
+    Promise.resolve(promise).then(value => {
+      stopped.delete(stop);
+      try { check(); resolve(value); } catch (error) { reject(error); }
+    }, error => { stopped.delete(stop); reject(error); });
+  });
+  const task = {
+    controllers, check, wait,
+    sleep: milliseconds => {
+      check();
+      return new Promise((resolve, reject) => {
+        const stop = () => { clearTimeout(timer); stopped.delete(stop); reject(canceled()); };
+        const timer = setTimeout(() => { stopped.delete(stop); resolve(); }, milliseconds);
+        stopped.add(stop);
+      });
+    },
+    stop: () => {
+      for (const stop of [...stopped]) stop();
+      stopped.clear();
+      for (const controller of controllers) controller.abort();
+      controllers.clear();
+    },
+  };
+  activeLogin = task;
+  return task;
+}
+
+function loginSession(data) {
+  const identities = [data?.id, data?.uid, data?.userInfo?.id, data?.userInfo?.uid].filter(value => value != null);
+  const ids = identities.map(value => typeof value === 'number' && !Number.isSafeInteger(value) ? '' : String(value));
+  const value = checkedSession({ uid: ids[0], token: data?.token });
+  if (!value || ids.some(id => id !== value.uid)) throw fail('invalid', t('Bodian Music returned inconsistent account identity'));
+  return value;
+}
+
+export function cancelSignIn() {
+  loginRevision++;
+  activeLogin?.stop();
+  activeLogin = null;
+}
+
 export async function signIn() {
-  host.signInPrompt({ text: t("Getting the sign-in QR code…") });
-  const { qrCode } = await get("ucenter/login/qrCode");
-  if (!qrCode) throw new Error(t("Bodian Music did not return a sign-in QR code"));
-  const content = `https://bodian-oia.kuwo.cn/bodian/download.html?pageName=login_pc&pt=3&id=${encodeURIComponent(qrCode)}`;
-  host.signInPrompt({ qr: content, text: t("Scan with the Bodian Music app and confirm on your phone") });
-
-  // Leave the host's five minutes room for the login and the profile.
-  const ends = Date.now() + 240000;
-  const pollUntil = Math.min(Date.now() + 150000, ends - 60000);
-  let confirmed = false;
-  while (Date.now() < pollUntil) {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    let status;
-    try {
-      ({ status } = await get("ucenter/login/qrCodeStatus", { qrCode }));
-    } catch (error) {
-      continue;
-    }
-    if (Number(status) === 2) throw new Error(t("The QR code expired, sign in again"));
-    if (Number(status) === 3) {
-      confirmed = true;
-      break;
-    }
-  }
-  if (!confirmed) throw new Error(t("Sign-in was cancelled or timed out"));
-
-  // The phone confirmed it; the session may take a moment to be issued. The
-  // login is retried only until a session comes back: the QR code is spent
-  // once it does, and the profile is asked for separately.
-  let data = null;
-  for (let attempt = 0; attempt < 5 && !data; attempt++) {
-    if (Date.now() > ends - 20000) break;
-    try {
-      const answer = await post("ucenter/users/login", { authType: 10, qrCode });
-      const id = answer && (answer.id || (answer.userInfo && answer.userInfo.id));
-      if (!answer || !answer.token || !id) throw new Error(t("Bodian Music did not return a session"));
-      data = answer;
-    } catch (error) {
-      if (error && error.code === "unavailable") throw error;
-      if (attempt === 4) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-  }
-  const uid = data && (data.id || (data.userInfo && data.userInfo.id));
-  if (!data || !data.token || !uid) throw new Error(t("Sign-in failed, scan again"));
-  setSession({ uid: String(uid), token: data.token });
-  forgetLibrary();
-
-  let profile = null;
+  const login = loginOperation();
+  const options = { login, auth: null };
   try {
-    profile = await profileOf(uid);
-  } catch (error) {
-    if (error && error.code === "signIn") throw error;
-    // The session is good; a profile that didn't load leaves the name out.
+    const previous = checkedSession(host.storage.get(SESSION_KEY));
+    if (previous) {
+      let validated = null;
+      try {
+        const answer = await get('ucenter/users/login', undefined, { login, auth: previous, signed: true });
+        validated = loginSession(answer);
+        if (validated.uid !== previous.uid) throw fail('invalid', t('Bodian Music returned inconsistent account identity'));
+      } catch (error) {
+        login.check();
+        // This endpoint can reject unsupported validation with HTTP 500.
+        // A public profile alone must never reactivate an unverified token.
+        if (!['api', 'http', 'signIn', 'invalid'].includes(error?.code)) throw error;
+      }
+      login.check();
+      if (validated) {
+        const profile = await profileOf(validated.uid, undefined, { login, auth: validated });
+        login.check();
+        setSession(validated);
+        forgetLibrary();
+        return profile;
+      }
+    }
+    host.signInPrompt({ text: t("Getting the sign-in QR code…") });
+    const { qrCode } = await get("ucenter/login/qrCode", undefined, options);
+    if (typeof qrCode !== 'string' || !qrCode) throw new Error(t("Bodian Music did not return a sign-in QR code"));
+    const content = `https://bodian-oia.kuwo.cn/bodian/download.html?pageName=login_pc&pt=3&id=${encodeURIComponent(qrCode)}`;
+    host.signInPrompt({ qr: content, text: t("Scan with the Bodian Music app and confirm on your phone") });
+    const ends = Date.now() + 240000;
+    const pollUntil = Math.min(Date.now() + 150000, ends - 60000);
+    let confirmed = false;
+    while (Date.now() < pollUntil) {
+      await login.sleep(1500);
+      let status;
+      try { ({ status } = await get("ucenter/login/qrCodeStatus", { qrCode }, options)); }
+      catch (error) { login.check(); if (error?.code === 'signIn') throw error; continue; }
+      if (Number(status) === 2) throw new Error(t("The QR code expired, sign in again"));
+      if (Number(status) === 3) { confirmed = true; break; }
+      if (Number(status) !== 1) throw fail('invalid', t('Bodian Music returned invalid data'));
+    }
+    if (!confirmed) throw new Error(t("Sign-in was cancelled or timed out"));
+    let data = null;
+    for (let attempt = 0; attempt < 5 && !data; attempt++) {
+      if (Date.now() > ends - 20000) break;
+      try {
+        const answer = await post("ucenter/users/login", { authType: 10, qrCode }, options);
+        loginSession(answer);
+        data = answer;
+      } catch (error) {
+        login.check();
+        if (['unavailable', 'invalid'].includes(error?.code) || attempt === 4) throw error;
+        await login.sleep(1000);
+      }
+    }
+    if (!data) throw new Error(t("Sign-in failed, scan again"));
+    const next = loginSession(data);
+    let profile;
+    try { profile = await profileOf(next.uid, undefined, { login, auth: next }); }
+    catch (error) {
+      login.check();
+      if (['signIn', 'invalid'].includes(error?.code)) throw error;
+      // The QR token exchange itself confirmed identity. A transient profile
+      // failure can use only that same exchange's public profile fields.
+      profile = { id: next.uid, name: t("Bodian Music listener"), imageUrl: "", page: "me" };
+    }
+    login.check();
+    if (data.userInfo) {
+      profile.name = data.userInfo.nickname || profile.name;
+      profile.imageUrl = safeURL(data.userInfo.headImg) || profile.imageUrl;
+    }
+    setSession(next);
+    forgetLibrary();
+    host.signInPrompt({ text: t("Signed in") });
+    return profile;
+  } finally {
+    if (activeLogin === login) activeLogin = null;
+    login.stop();
   }
-  if (!profile) profile = { id: String(uid), name: t("Bodian Music listener"), imageUrl: "", page: "me" };
-  if (data.userInfo) {
-    profile.name = data.userInfo.nickname || profile.name;
-    profile.imageUrl = safeURL(data.userInfo.headImg) || profile.imageUrl;
-  }
-  host.signInPrompt({ text: t("Signed in") });
-  return profile;
 }
 
 export function signOut() {
+  cancelSignIn();
   setSession(null);
   forgetLibrary();
 }
 
 export async function account() {
-  const s = session();
+  const s = session(), revision = loginRevision;
   if (!s) return null;
   try {
-    return await profileOf(s.uid);
+    const profile = await profileOf(s.uid);
+    if (revision !== loginRevision || !sameSession(s, session())) return null;
+    return profile;
   } catch (error) {
-    if (error && error.code === "signIn") return null;
+    if (revision !== loginRevision || !sameSession(s, session()) || error?.code === "signIn") return null;
     throw error;
   }
 }

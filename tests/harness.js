@@ -1,6 +1,7 @@
 // A fake app for the plugin: host, fetch and a place to watch what it asks
 // for, so the plugin can be tested without MyGo Music or the network.
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 
 const clone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
 
@@ -24,6 +25,7 @@ export async function loadPlugin({ storage = {}, settings = {}, handler, locales
       remove: (key) => state.delete(key),
     },
     setting: (key) => settings[key] || "",
+    crypto: { md5: text => createHash('md5').update(text).digest('hex') },
     language: () => "zh-CN",
     t: (text) => (locales && locales[text]) || text,
     signInPrompt: (prompt) => prompts.push(prompt),

@@ -3,3 +3,13 @@ dist/
 .DS_Store
 temp/
 .claude/
+
+plugin.zip
+plugin-data/
+storage.json
+settings.json
+.origin.json
+.granted.json
+*.log
+.env*
+__pycache__/

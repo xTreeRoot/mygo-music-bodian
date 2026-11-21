@@ -200,7 +200,8 @@ test("a session Bodian refuses asks the listener to sign in again", async () => 
     () => mod.search({ query: "x", kind: "tracks" }),
     (error) => error.code === "signIn",
   );
-  assert.equal(storage.get("session"), undefined);
+  assert.deepEqual(storage.get("session"), session);
+  assert.equal(storage.get("session.active"), false);
 });
 
 test("signing in scans a QR code and keeps the session", async () => {
