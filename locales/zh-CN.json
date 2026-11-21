@@ -81,5 +81,6 @@
   "Bodian Music answered with an error ({code})": "波点音乐接口返回错误（{code}）",
   "Updated {date}": "更新：{date}",
   "Shown {shown} of {total}": "已看 {shown} / {total}",
-  "Bodian Music returned inconsistent account identity": "波点音乐返回的账号身份不一致，请重新扫码"
+  "Bodian Music returned inconsistent account identity": "波点音乐返回的账号身份不一致，请重新扫码",
+  "波点音乐": "波点音乐"
 }

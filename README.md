@@ -1,6 +1,6 @@
 # 波点音乐插件 · MB / MyGo
 
-**0.3.4**，同一份纯 JavaScript 插件用于 MB 桌面、iOS 和 Android。最低宿主兼容版本为 **MyGo 0.1.17**；移动端需使用支持 JavaScript 插件的 MB。直接访问波点 / 酷我服务，无需 Node 后台、独立 API 服务或外部播放器。
+**0.3.5**，同一份纯 JavaScript 插件用于 MB 桌面、iOS 和 Android。最低宿主兼容版本为 **MyGo 0.1.17**；移动端需使用支持 JavaScript 插件的 MB。直接访问波点 / 酷我服务，无需 Node 后台、独立 API 服务或外部播放器。
 
 由 xTreeRoot 基于 [amqsy/mygo-music-bodian 0.3.3](https://github.com/amqsy/mygo-music-bodian) 继续维护，保留上游历史及 MIT 许可证。来源见 [NOTICE.md](NOTICE.md)。
 
