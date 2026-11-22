@@ -1281,6 +1281,12 @@ async function squarePage(page) {
 }
 
 export async function browse({ page }) {
+  if (page === "discovery:guess") return { sections: [{ tracks: await guessTracks(12) }] };
+  if (page === "discovery:lab") { const value = await module(4); return { sections: [{ tracks: value?.lab?.music?.id ? [toTrack(value.lab.music)] : [] }] }; }
+  if (page === "discovery:video") { const value = await module(11); return { sections: [{ tracks: (value?.video || []).map(toTrack) }] }; }
+  if (page === "discovery:themes") return { sections: await themedSections() };
+  if (page === "discovery:similar") { const value = session() ? await module(10) : null; return { sections: [{ tracks: (value?.musicList || []).map(toTrack) }] }; }
+  if (page === "discovery:featured") return { sections: [{ playlists: await featuredPlaylists(24), morePage: "square" }] };
   if (page === "daily") {
     return { title: t("Daily Picks"), subtitle: t("Picked for you every day by Bodian Music"), sections: [{ tracks: await dailySongs() }] };
   }

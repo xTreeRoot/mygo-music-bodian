@@ -1,7 +1,7 @@
 {
   "id": "bodian",
   "name": "波点音乐",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "minAppVersion": "0.1.17",
   "main": "index.js",
   "playback": "stream",
@@ -75,6 +75,78 @@
       "headers": {
         "User-Agent": "Dart/3.3 (dart:io)"
       }
+    }
+  ],
+  "discovery": [
+    {
+      "id": "daily",
+      "title": "每日推荐",
+      "page": "daily"
+    },
+    {
+      "id": "guess",
+      "title": "猜你想听",
+      "page": "discovery:guess"
+    },
+    {
+      "id": "lab",
+      "title": "波点实验室",
+      "page": "discovery:lab"
+    },
+    {
+      "id": "video",
+      "title": "不一样的音乐",
+      "page": "discovery:video"
+    },
+    {
+      "id": "themes",
+      "title": "主题推荐",
+      "page": "discovery:themes"
+    },
+    {
+      "id": "similar",
+      "title": "相似推荐",
+      "page": "discovery:similar"
+    },
+    {
+      "id": "featured",
+      "title": "推荐歌单",
+      "page": "discovery:featured"
+    },
+    {
+      "id": "charts",
+      "title": "排行榜",
+      "page": "charts"
+    },
+    {
+      "id": "square",
+      "title": "歌单广场",
+      "page": "square"
+    },
+    {
+      "id": "calendar",
+      "title": "音乐日历",
+      "page": "calendar"
+    },
+    {
+      "id": "topics",
+      "title": "话题",
+      "page": "topics"
+    },
+    {
+      "id": "stats",
+      "title": "听歌统计",
+      "page": "stats"
+    },
+    {
+      "id": "stations",
+      "title": "电台",
+      "builtin": "stations"
+    },
+    {
+      "id": "liked",
+      "title": "喜欢的音乐",
+      "builtin": "liked"
     }
   ]
 }
