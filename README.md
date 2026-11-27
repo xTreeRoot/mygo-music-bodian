@@ -1,12 +1,12 @@
-# 波点音乐插件 · MB / MyGo
+# 波点音乐插件 · 山海 / MyGo
 
-**0.3.5**，同一份纯 JavaScript 插件用于 MB 桌面、iOS 和 Android。最低宿主兼容版本为 **MyGo 0.1.17**；移动端需使用支持 JavaScript 插件的 MB。直接访问波点 / 酷我服务，无需 Node 后台、独立 API 服务或外部播放器。
+**0.3.5**，同一份纯 JavaScript 插件用于山海桌面、iOS 和 Android。最低宿主兼容版本为 **MyGo 0.1.17**；移动端需使用支持 JavaScript 插件的山海。直接访问波点 / 酷我服务，无需 Node 后台、独立 API 服务或外部播放器。
 
 由 xTreeRoot 基于 [amqsy/mygo-music-bodian 0.3.3](https://github.com/amqsy/mygo-music-bodian) 继续维护，保留上游历史及 MIT 许可证。来源见 [NOTICE.md](NOTICE.md)。
 
 ## 安装
 
-在 MB「设置 → 插件」中选择从 GitHub 安装，输入：
+在山海「设置 → 插件」中选择从 GitHub 安装，输入：
 
 ```text
 xTreeRoot/mygo-music-bodian
@@ -44,7 +44,7 @@ xTreeRoot/mygo-music-bodian
 2026-11-21 验证：
 
 - 103 项离线行为回归全部通过，覆盖搜索分页、歌单、评论、歌词、音质回退，以及三端取消、停用 / 验证复用和身份保护。
-- 在桌面实际 MoeJS + Web APIs 及分别提取的 MB iOS / Android 实际 QuickJS + 宿主脚本中，运行同一份入口，检查搜索分页、中文歌词、音频结果、扫码流程和退出 / 重新登录。API 使用合成响应，没有操作用户应用。
+- 在桌面实际 MoeJS + Web APIs 及分别提取的山海 iOS / Android 实际 QuickJS + 宿主脚本中，运行同一份入口，检查搜索分页、中文歌词、音频结果、扫码流程和退出 / 重新登录。API 使用合成响应，没有操作用户应用。
 - 匿名在线检查覆盖四类搜索、下一页、建议、首页、榜单及歌曲、公开歌单、专辑、歌手、歌词、评论和免费标准 MP3 实际字节；官方二维码仅准备后取消，没有授权账号。
 - 尚未进行真实账号扫码、VIP 音质、线上歌单写入及三端真机播放验收。运行时检查不等同于真机验收。
 
@@ -58,14 +58,14 @@ npm run test:live
 python3 scripts/package.py
 ```
 
-可选实际运行时检查（仅只读访问 MB；编译产物和合成账号放临时目录）：
+可选实际运行时检查（仅只读访问山海；编译产物和合成账号放临时目录）：
 
 ```sh
 MOEJS_HOST_DIR=/path/to/MB sh scripts/test-desktop-runtime.sh
 python3 scripts/test-mobile-runtime.py --mb /path/to/MB
 ```
 
-桌面检查需匹配 MB `go.mod` 的 Go 工具链；移动检查需 Python 3、Clang 及 MB 的 `ios` / `android` 引用。匿名在线检查仅在显式执行时访问服务，不在 CI 自动发起登录或修改音乐资源。
+桌面检查需匹配山海 `go.mod` 的 Go 工具链；移动检查需 Python 3、Clang 及山海的 `ios` / `android` 引用。匿名在线检查仅在显式执行时访问服务，不在 CI 自动发起登录或修改音乐资源。
 
 ## 许可证
 
